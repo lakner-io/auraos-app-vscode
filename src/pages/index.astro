@@ -1,0 +1,543 @@
+---
+// Orchestrator UI: sidebar of installed apps + embedded per-app editors.
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VSCode</title>
+    <style is:global>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        display: flex;
+        background: var(--aura-color-bg, #101014);
+        color: var(--aura-color-text, #ddd);
+        font-family: var(--aura-font-mono, ui-monospace, monospace);
+        font-size: 13px;
+      }
+      aside {
+        width: 280px; min-width: 280px;
+        display: flex; flex-direction: column;
+        background: var(--aura-color-surface, #17171c);
+        border-right: 1px solid var(--aura-color-border, #2a2a33);
+        transition: width 0.15s ease, min-width 0.15s ease;
+      }
+      body.sidebar-collapsed aside {
+        width: 0; min-width: 0; overflow: hidden; border-right: none;
+      }
+      aside header {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--aura-color-border, #2a2a33);
+      }
+      .title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+      aside header h1 { margin: 0; font-size: 14px; color: var(--aura-color-primary, #7cf); flex: 1; }
+      .toggle-btn {
+        flex: none; width: 24px; height: 24px; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: inherit; font-size: 14px; line-height: 1; cursor: pointer;
+        background: transparent; border-radius: 4px;
+        color: var(--aura-color-text-dim, #888);
+        border: 1px solid var(--aura-color-border, #2a2a33);
+      }
+      .toggle-btn:hover { color: var(--aura-color-primary, #7cf); background: var(--aura-color-surface2, #1e1e26); }
+      /* Floating reopen button, only while collapsed. */
+      #sidebar-reopen {
+        position: absolute; top: 8px; left: 8px; z-index: 10; display: none;
+        background: var(--aura-color-surface, #17171c);
+      }
+      body.sidebar-collapsed #sidebar-reopen { display: flex; }
+      #cap-pill { font-size: 11px; color: var(--aura-color-text-dim, #888); display: flex; align-items: center; gap: 8px; }
+      #cap-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--aura-color-danger, #e55); }
+      #cap-pill.ok .dot { background: var(--aura-color-success, #5c5); }
+      #app-search {
+        margin-top: 8px; width: 100%; box-sizing: border-box;
+        font-family: inherit; font-size: 12px; padding: 6px 8px; border-radius: 6px;
+        background: var(--aura-color-bg, #101014); color: var(--aura-color-text, #ddd);
+        border: 1px solid var(--aura-color-border, #2a2a33); outline: none;
+      }
+      #app-search:focus { border-color: var(--aura-color-primary, #7cf); }
+      #app-search::placeholder { color: var(--aura-color-text-dim, #888); }
+      .no-match { padding: 14px 10px; color: var(--aura-color-text-dim, #888); font-size: 12px; }
+      .app-name .hl, .app-id .hl { color: var(--aura-color-primary, #7cf); font-weight: 700; }
+      .app-row.active { border-color: var(--aura-color-primary, #7cf); background: var(--aura-color-surface2, #1e1e26); }
+      .star {
+        flex: none; width: 22px; height: 22px; padding: 0; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        background: transparent; border: none; border-radius: 4px;
+        font-size: 13px; line-height: 1; color: var(--aura-color-text-dim, #888);
+        opacity: 0.4; transition: opacity 0.1s ease;
+      }
+      .app-row:hover .star { opacity: 0.7; }
+      .star:hover { opacity: 1 !important; background: var(--aura-color-surface2, #1e1e26); }
+      .star.on { opacity: 1; color: var(--aura-color-warning, #ffd166); }
+      #app-list { flex: 1; overflow-y: auto; padding: 6px; }
+      .app-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 8px; border-radius: 6px; cursor: default;
+        border: 1px solid transparent;
+      }
+      .app-row.actionable { cursor: pointer; }
+      .app-row.actionable:hover { background: var(--aura-color-surface2, #1e1e26); }
+      .app-row.selected { border-color: var(--aura-color-primary, #7cf); background: var(--aura-color-surface2, #1e1e26); }
+      .app-row.dim { opacity: 0.45; }
+      .app-icon {
+        width: 28px; height: 28px; border-radius: 6px; flex: none;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--aura-color-bg, #101014);
+        border: 1px solid var(--aura-color-border, #2a2a33);
+        font-size: 10px; color: var(--aura-color-primary, #7cf);
+      }
+      .app-meta { flex: 1; min-width: 0; }
+      .app-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .app-id { font-size: 10px; color: var(--aura-color-text-dim, #888); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .badges { display: flex; gap: 4px; align-items: center; flex: none; }
+      .badge {
+        font-size: 9px; padding: 2px 5px; border-radius: 4px;
+        border: 1px solid var(--aura-color-border, #2a2a33);
+        color: var(--aura-color-text-dim, #888); background: transparent;
+        font-family: inherit; cursor: default;
+      }
+      .badge.cap { color: var(--aura-color-primary, #7cf); border-color: var(--aura-color-primary, #7cf); }
+      .badge.editor { color: var(--aura-color-success, #5c5); border-color: var(--aura-color-success, #5c5); }
+      .badge.run-dot { width: 7px; height: 7px; padding: 0; border: none; border-radius: 50%; background: var(--aura-color-success, #5c5); }
+      button.act {
+        font-family: inherit; font-size: 10px; padding: 3px 8px; border-radius: 4px;
+        background: transparent; cursor: pointer;
+        color: var(--aura-color-primary, #7cf); border: 1px solid var(--aura-color-primary, #7cf);
+      }
+      button.act:hover { background: var(--aura-color-surface2, #1e1e26); }
+      button.act.subtle { color: var(--aura-color-text-dim, #888); border-color: var(--aura-color-border, #2a2a33); }
+      main { flex: 1; position: relative; min-width: 0; }
+      main iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+      #placeholder {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px;
+      }
+      #placeholder h2 { color: var(--aura-color-primary, #7cf); margin: 0; font-size: 15px; }
+      #placeholder p { color: var(--aura-color-text-dim, #888); max-width: 460px; margin: 0; }
+      .spin { animation: spin 1s linear infinite; display: inline-block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      /* Loading overlay shown over the content area while an editor spins up. */
+      #loading {
+        position: absolute; inset: 0; z-index: 6; display: none;
+        flex-direction: column; align-items: center; justify-content: center;
+        gap: 16px; text-align: center; padding: 24px;
+        background: var(--aura-color-bg, #101014);
+      }
+      #loading.on { display: flex; }
+      #loading .ring {
+        width: 40px; height: 40px; border-radius: 50%;
+        border: 3px solid var(--aura-color-border, #2a2a33);
+        border-top-color: var(--aura-color-primary, #7cf);
+        animation: spin 0.8s linear infinite;
+      }
+      #loading .msg { color: var(--aura-color-text, #ddd); font-size: 13px; }
+      #loading .sub { color: var(--aura-color-text-dim, #888); font-size: 11px; margin-top: -8px; }
+      #toast {
+        position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+        background: var(--aura-color-surface, #17171c); border: 1px solid var(--aura-color-danger, #e55);
+        color: var(--aura-color-text, #ddd); padding: 8px 14px; border-radius: 6px; font-size: 12px;
+        display: none; max-width: 70%;
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <header>
+        <div class="title-row">
+          <h1>VSCode Orchestrator</h1>
+          <button class="toggle-btn" id="app-refresh" title="Reload apps" aria-label="Reload apps"><span id="refresh-ico">↻</span></button>
+          <button class="toggle-btn" id="sidebar-collapse" title="Hide sidebar" aria-label="Hide sidebar">⟨</button>
+        </div>
+        <div id="cap-pill"><span class="dot"></span><span id="cap-text">checking capability…</span></div>
+        <input id="app-search" type="search" placeholder="Search apps…  ↑↓ ↵ esc" autocomplete="off" spellcheck="false" autofocus />
+      </header>
+      <div id="app-list"></div>
+    </aside>
+    <main>
+      <button class="toggle-btn" id="sidebar-reopen" title="Show sidebar" aria-label="Show sidebar">☰</button>
+      <div id="placeholder">
+        <h2>No editor open</h2>
+        <p>Pick an app on the left. Apps with the <b>CS</b> badge have the code-server capability — one click starts the app (if needed) and its editor. Grant the capability to more apps right from their row.</p>
+      </div>
+      <div id="loading">
+        <div class="ring"></div>
+        <div class="msg" id="loading-msg">Loading…</div>
+        <div class="sub" id="loading-sub"></div>
+      </div>
+      <div id="toast"></div>
+    </main>
+
+    <script>
+      const B = (window.AURA_APP_BASE_PATH || '').replace(/\/$/, '');
+
+      // Per-window identity: the shell assigns each orchestrator window its own
+      // activity id (injected as a <meta> tag). Key per-window UI state on it so
+      // windows keep independent selection + layout.
+      const ACTIVITY_ID = document.querySelector('meta[name="aura-activity-id"]')?.getAttribute('content') || 'default';
+      const SEL_KEY = 'aura.vscode.selected.' + ACTIVITY_ID;
+
+      // Sidebar collapse toggle (remembered per window across reloads).
+      const COLLAPSE_KEY = 'aura.vscode.sidebarCollapsed.' + ACTIVITY_ID;
+      function setCollapsed(on) {
+        document.body.classList.toggle('sidebar-collapsed', on);
+        try { localStorage.setItem(COLLAPSE_KEY, on ? '1' : '0'); } catch {}
+      }
+      if ((() => { try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; } })()) {
+        document.body.classList.add('sidebar-collapsed');
+      }
+      document.getElementById('sidebar-collapse').onclick = () => setCollapsed(true);
+      document.getElementById('sidebar-reopen').onclick = () => setCollapsed(false);
+
+      // Manual reload of the app list (independent of the 4s auto-refresh).
+      const refreshBtn = document.getElementById('app-refresh');
+      const refreshIco = document.getElementById('refresh-ico');
+      refreshBtn.onclick = async () => {
+        refreshBtn.disabled = true; refreshIco.classList.add('spin');
+        try { await refresh(); } finally { refreshBtn.disabled = false; refreshIco.classList.remove('spin'); }
+      };
+
+      const listEl = document.getElementById('app-list');
+      const capPill = document.getElementById('cap-pill');
+      const capText = document.getElementById('cap-text');
+      const placeholder = document.getElementById('placeholder');
+      const main = document.querySelector('main');
+      const toast = document.getElementById('toast');
+      const loadingEl = document.getElementById('loading');
+      const loadingMsg = document.getElementById('loading-msg');
+      const loadingSub = document.getElementById('loading-sub');
+
+      const loadingApps = new Set(); // appIds whose iframe is still booting
+      function showLoading(msg, sub) {
+        loadingMsg.textContent = msg;
+        loadingSub.textContent = sub || '';
+        loadingEl.classList.add('on');
+      }
+      function hideLoading() { loadingEl.classList.remove('on'); }
+
+      let state = { capInstalled: false, apps: [] };
+      let selected = null;           // appId whose iframe is shown (per window)
+      let restored = false;          // has this window restored its persisted selection yet?
+      const busy = new Set();        // appIds with an action in flight
+      const frames = new Map();      // appId -> iframe (kept alive across switches)
+
+      const searchEl = document.getElementById('app-search');
+
+      // Fuzzy search + favorites.
+      let query = '';
+      let activeId = null;           // keyboard-highlighted appId among matches
+      const FAV_KEY = 'aura.vscode.favorites';
+      let favorites = new Set((() => { try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch { return []; } })());
+      const isFav = (id) => favorites.has(id);
+      function toggleFav(id) {
+        if (favorites.has(id)) favorites.delete(id); else favorites.add(id);
+        try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch {}
+        render();
+      }
+
+      const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+      // Subsequence fuzzy match → { score, positions } or null (no match).
+      function fuzzy(text, q) {
+        const t = text.toLowerCase(), s = q.toLowerCase();
+        let ti = 0, score = 0, streak = 0; const pos = [];
+        for (let si = 0; si < s.length; si++) {
+          let found = -1;
+          for (let k = ti; k < t.length; k++) { if (t[k] === s[si]) { found = k; break; } }
+          if (found === -1) return null;
+          pos.push(found);
+          streak = (found === ti) ? streak + 1 : 0;      // reward consecutive hits
+          let pts = 1 + streak * 2;
+          if (found === 0) pts += 4;                       // prefix bonus
+          else { const p = t[found - 1]; if (p === ' ' || p === '.' || p === '-' || p === '_' || p === '/') pts += 3; } // word-boundary bonus
+          score += pts; ti = found + 1;
+        }
+        return { score: score - (t.length - s.length) * 0.03, positions: pos };
+      }
+      // Match name (weighted higher) and id; keep per-field positions for highlight.
+      function fuzzyScore(app, q) {
+        const n = fuzzy(app.name, q), i = fuzzy(app.id, q);
+        if (!n && !i) return null;
+        return { score: Math.max(n ? n.score + 5 : -1e9, i ? i.score : -1e9), name: n?.positions ?? null, id: i?.positions ?? null };
+      }
+      function highlight(text, positions) {
+        if (!positions || !positions.length) return escHtml(text);
+        const set = new Set(positions); let out = '';
+        for (let k = 0; k < text.length; k++) out += set.has(k) ? `<span class="hl">${escHtml(text[k])}</span>` : escHtml(text[k]);
+        return out;
+      }
+
+      // Apps to show, in order: favorites first, then match relevance (when
+      // searching) or the default hasCap/id order.
+      function visibleApps() {
+        const q = query.trim();
+        let list = state.apps.map((app) => ({ app, m: q ? fuzzyScore(app, q) : null }));
+        if (q) list = list.filter((x) => x.m);
+        list.sort((a, b) => {
+          const fa = isFav(a.app.id), fb = isFav(b.app.id);
+          if (fa !== fb) return fa ? -1 : 1;
+          if (q) return b.m.score - a.m.score;
+          return Number(b.app.hasCap) - Number(a.app.hasCap) || a.app.id.localeCompare(b.app.id);
+        });
+        return list;
+      }
+      const actionableIds = () => visibleApps().filter((x) => x.app.supported && x.app.hasCap && !busy.has(x.app.id)).map((x) => x.app.id);
+      function moveActive(dir) {
+        const ids = actionableIds();
+        if (!ids.length) { activeId = null; return; }
+        let i = ids.indexOf(activeId);
+        i = i === -1 ? (dir > 0 ? 0 : ids.length - 1) : (i + dir + ids.length) % ids.length;
+        activeId = ids[i]; render();
+        listEl.querySelector('.app-row.active')?.scrollIntoView({ block: 'nearest' });
+      }
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => { toast.style.display = 'none'; }, 6000);
+      }
+
+      async function api(path, opts) {
+        const res = await fetch(B + path, opts);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || (path + ' → ' + res.status));
+        return body;
+      }
+
+      function frameFor(appId, workspaceFolder) {
+        let f = frames.get(appId);
+        if (!f) {
+          // Apps advertising the dev-workspace capability (e.g. DevBox) open a
+          // folder the provider chooses; everything else opens its own source.
+          const folder = workspaceFolder || `/workspace/apps/${appId}`;
+          f = document.createElement('iframe');
+          f.src = `${B}/cs/${appId}/?folder=${encodeURIComponent(folder)}`;
+          f.style.display = 'none';
+          main.appendChild(f);
+          frames.set(appId, f);
+        }
+        return f;
+      }
+
+      function select(appId) {
+        selected = appId;
+        try { localStorage.setItem(SEL_KEY, appId || ''); } catch {}
+        for (const [id, f] of frames) f.style.display = id === appId ? 'block' : 'none';
+        placeholder.style.display = appId ? 'none' : 'flex';
+        // Show the overlay only while the selected editor is still booting.
+        // Don't clobber a more specific message already on screen.
+        if (appId && loadingApps.has(appId)) {
+          if (!loadingEl.classList.contains('on')) showLoading('Loading…', 'starting VS Code');
+        } else hideLoading();
+        render();
+      }
+
+      async function openEditor(app) {
+        if (busy.has(app.id)) return;
+        busy.add(app.id); render();
+        placeholder.style.display = 'none';
+        showLoading(app.session ? `Loading ${app.name}…` : `Starting ${app.name}…`,
+                    app.session ? 'connecting to editor' : 'launching app + code-server');
+        try {
+          if (!app.session) await api('/api/sessions', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ appId: app.id }),
+          });
+          frames.get(app.id)?.remove(); frames.delete(app.id); // fresh load after (re)start
+          loadingApps.add(app.id);
+          showLoading(`Loading ${app.name}…`, 'starting VS Code');
+          const f = frameFor(app.id, app.workspaceFolder);
+          // Hide the overlay once the workbench document loads (fast on repeat
+          // opens thanks to the shared asset cache); fall back after 30s.
+          let done = false;
+          const finish = () => { if (done) return; done = true; clearTimeout(t); loadingApps.delete(app.id); if (selected === app.id) hideLoading(); };
+          const t = setTimeout(finish, 30000);
+          f.addEventListener('load', finish, { once: true });
+          select(app.id);
+        } catch (e) { hideLoading(); showToast(e.message); }
+        finally { busy.delete(app.id); await refresh(); }
+      }
+
+      async function stopEditor(app) {
+        if (busy.has(app.id)) return;
+        busy.add(app.id); render();
+        try {
+          await api(`/api/sessions/${app.id}`, { method: 'DELETE' });
+          frames.get(app.id)?.remove(); frames.delete(app.id); loadingApps.delete(app.id);
+          if (selected === app.id) select(null);
+        } catch (e) { showToast(e.message); }
+        finally { busy.delete(app.id); await refresh(); }
+      }
+
+      async function grant(app, revoke) {
+        if (busy.has(app.id)) return;
+        busy.add(app.id); render();
+        try { await api('/api/grant', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ appId: app.id, revoke }),
+        }); } catch (e) { showToast(e.message); }
+        finally { busy.delete(app.id); await refresh(); }
+      }
+
+      async function installCap() {
+        capText.innerHTML = '<span class="spin">◌</span> installing capability…';
+        try { await api('/api/capability', { method: 'POST' }); }
+        catch (e) { showToast(e.message); }
+        await refresh();
+      }
+
+      function render() {
+        // capability pill
+        capPill.classList.toggle('ok', state.capInstalled);
+        if (state.capInstalled) capText.textContent = 'code-server capability installed';
+        else {
+          capText.innerHTML = '';
+          const b = document.createElement('button');
+          b.className = 'act'; b.textContent = 'Install code-server capability';
+          b.onclick = installCap;
+          capText.appendChild(b);
+        }
+
+        const items = visibleApps();
+        // Keep the keyboard highlight pointed at a real match while searching.
+        if (query.trim()) {
+          const acts = items.filter((x) => x.app.supported && x.app.hasCap && !busy.has(x.app.id)).map((x) => x.app.id);
+          if (!acts.includes(activeId)) activeId = acts[0] ?? null;
+        }
+
+        listEl.innerHTML = '';
+        if (!items.length) {
+          const nm = document.createElement('div'); nm.className = 'no-match';
+          nm.textContent = query.trim() ? `No apps match “${query.trim()}”` : 'No apps';
+          listEl.appendChild(nm); return;
+        }
+        for (const { app, m } of items) {
+          const row = document.createElement('div');
+          row.className = 'app-row';
+          if (!app.supported) row.classList.add('dim');
+          if (app.id === selected) row.classList.add('selected');
+          if (app.id === activeId) row.classList.add('active');
+
+          const icon = document.createElement('div');
+          icon.className = 'app-icon'; icon.textContent = app.icon;
+          const meta = document.createElement('div');
+          meta.className = 'app-meta';
+          meta.innerHTML = `<div class="app-name">${highlight(app.name, m?.name)}</div><div class="app-id">${highlight(app.id, m?.id)}</div>`;
+          const badges = document.createElement('div');
+          badges.className = 'badges';
+
+          if (busy.has(app.id)) {
+            const s = document.createElement('span');
+            s.className = 'spin'; s.textContent = '◌';
+            badges.appendChild(s);
+          } else if (!app.supported) {
+            const b = document.createElement('span');
+            b.className = 'badge'; b.textContent = app.sandbox === 'proot' ? 'proot — unsupported' : 'no ui sandbox';
+            badges.appendChild(b);
+          } else if (!app.hasCap) {
+            if (state.capInstalled) {
+              const b = document.createElement('button');
+              b.className = 'act subtle'; b.textContent = '+ grant CS';
+              b.onclick = (e) => { e.stopPropagation(); grant(app, false); };
+              badges.appendChild(b);
+            }
+          } else {
+            if (app.running) { const d = document.createElement('span'); d.className = 'badge run-dot'; d.title = 'app running'; badges.appendChild(d); }
+            const cap = document.createElement('span');
+            cap.className = 'badge cap'; cap.textContent = 'CS'; cap.title = 'code-server capability granted — double-click to revoke';
+            cap.ondblclick = (e) => { e.stopPropagation(); grant(app, true); };
+            badges.appendChild(cap);
+            if (app.session) {
+              const ed = document.createElement('span');
+              ed.className = 'badge editor'; ed.textContent = 'EDITOR';
+              badges.appendChild(ed);
+              const stop = document.createElement('button');
+              stop.className = 'act subtle'; stop.textContent = '■'; stop.title = 'stop editor';
+              stop.onclick = (e) => { e.stopPropagation(); stopEditor(app); };
+              badges.appendChild(stop);
+            }
+          }
+
+          const star = document.createElement('button');
+          star.className = 'star' + (isFav(app.id) ? ' on' : '');
+          star.textContent = isFav(app.id) ? '★' : '☆';
+          star.title = isFav(app.id) ? 'Unfavorite' : 'Favorite';
+          star.onclick = (e) => { e.stopPropagation(); toggleFav(app.id); };
+
+          row.append(icon, meta, badges, star);
+          if (app.supported && app.hasCap && !busy.has(app.id)) {
+            row.classList.add('actionable');
+            row.onclick = () => (app.session && frames.has(app.id)) ? select(app.id) : openEditor(app);
+          }
+          listEl.appendChild(row);
+        }
+      }
+
+      // Pre-warm the browser cache with the big workbench bundles from the
+      // SHARED asset path, so the first editor open is instant and every
+      // later editor hits the same cached URLs.
+      let prefetched = false;
+      function prefetchWorkbench(commit) {
+        if (prefetched || !commit) return;
+        prefetched = true;
+        const base = `${B}/cs-static/${commit}/out/vs/code/browser/workbench/`;
+        for (const [href, as] of [
+          [`${base}workbench.js`, 'script'],
+          [`${base}workbench.css`, 'style'],
+          [`${B}/cs-static/${commit}/out/nls.messages.js`, 'script'],
+        ]) {
+          const l = document.createElement('link');
+          l.rel = 'prefetch'; l.as = as; l.href = href;
+          document.head.appendChild(l);
+        }
+      }
+
+      async function refresh() {
+        try {
+          state = await api('/api/state');
+          if (state.capInstalled) prefetchWorkbench(state.csCommit);
+          // drop frames whose sessions died (target restarted); never yank one
+          // that is still booting (its session may not be visible in state yet).
+          for (const [id, f] of frames) {
+            const app = state.apps.find((a) => a.id === id);
+            if (!app?.session && !loadingApps.has(id)) {
+              f.remove(); frames.delete(id); if (selected === id) select(null);
+            }
+          }
+          // Restore this window's last editor once (its session is usually warm → instant).
+          if (!restored) {
+            restored = true;
+            let want = null; try { want = localStorage.getItem(SEL_KEY); } catch {}
+            if (want && !selected) {
+              const app = state.apps.find((a) => a.id === want);
+              if (app && app.supported && app.hasCap) openEditor(app);
+            }
+          }
+        } catch (e) { /* transient — keep last state */ }
+        render();
+      }
+
+      // Search: filter as you type; ↑/↓ move, ↵ opens the highlighted app, esc clears.
+      searchEl.addEventListener('input', () => { query = searchEl.value; activeId = null; render(); });
+      searchEl.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(-1); }
+        else if (e.key === 'Enter') {
+          e.preventDefault();
+          const app = state.apps.find((a) => a.id === activeId);
+          if (app && app.supported && app.hasCap && !busy.has(app.id)) {
+            (app.session && frames.has(app.id)) ? select(app.id) : openEditor(app);
+          }
+        } else if (e.key === 'Escape') {
+          if (query) { searchEl.value = ''; query = ''; activeId = null; render(); }
+        }
+      });
+
+      refresh();
+      setInterval(refresh, 4000);
+    </script>
+  </body>
+</html>

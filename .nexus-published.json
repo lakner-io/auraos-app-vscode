@@ -1,0 +1,10 @@
+{
+  "publishedBy": "aura-nexus",
+  "publishedAt": "2026-11-25T21:53:46.764Z",
+  "publishedVersion": "0.2.0",
+  "source": {
+    "repository": "https://github.com/lakner-io/auraos-app-vscode",
+    "branch": "main",
+    "commit": "07ea0a51979488f61ba06ea500a23af7ba9a7771"
+  }
+}

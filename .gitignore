@@ -1,0 +1,19 @@
+
+# AuraOS: runtime data and secrets never go into the repo
+/io.lakner.vscode/
+.sidecars/
+node_modules/
+.pnpm-store/
+.data/
+dist/
+.astro/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.db
+*.sqlite
+*.sqlite*
+credentials.json
+*-credentials.json

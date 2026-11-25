@@ -1,0 +1,60 @@
+{
+  "id": "io.lakner.vscode",
+  "originId": "94219fa4-9b70-4c60-9854-cc30b0274937",
+  "name": "VSCode",
+  "version": "0.2.0",
+  "description": "Code orchestrator — grants the code-server capability to apps and embeds a per-app VS Code editor running inside each app's own sandbox",
+  "icon": "VSC",
+  "componentType": "activity",
+  "sandbox": "container",
+  "instanceMode": "single",
+  "activityMode": "multi",
+  "maxActivitiesPerInstance": 0,
+  "backgroundService": true,
+  "themeStrategy": "inherit",
+  "proxy": {
+    "rewriteHtml": "absolute"
+  },
+  "tools": [
+    "bash",
+    "node",
+    "docker",
+    "aura",
+    "code-server"
+  ],
+  "permissions": [
+    "network.local"
+  ],
+  "repository": {
+    "url": "https://github.com/lakner-io/auraos-app-vscode",
+    "branch": "main",
+    "commit": "07ea0a51979488f61ba06ea500a23af7ba9a7771"
+  },
+  "store": {
+    "publisher": "Lakner",
+    "homepage": "https://github.com/lakner-io/auraos-app-vscode",
+    "tags": [
+      "developer",
+      "editor",
+      "vscode",
+      "code-server",
+      "workspace"
+    ],
+    "longDescription": "Manage per-app code-server editors from one AuraOS window. Install and grant the code-server capability, open editors inside each target app's own container, and synchronize the editor theme with AuraOS. Supports container apps, not PRoot apps. Docker socket access is required to start and inspect editor processes inside the target containers; this privileged capability is effectively host-root access. Runtime state and credentials are not included in the release. This is an independent code-server integration, not an official Microsoft product."
+  },
+  "publish": {
+    "channels": [
+      "stable"
+    ],
+    "ignore": [
+      "node_modules",
+      "dist",
+      ".astro",
+      ".next",
+      ".turbo",
+      ".cache",
+      ".npmrc",
+      "io.lakner.vscode"
+    ]
+  }
+}
