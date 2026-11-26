@@ -2,7 +2,7 @@
   "id": "io.lakner.vscode",
   "originId": "94219fa4-9b70-4c60-9854-cc30b0274937",
   "name": "VSCode",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Code orchestrator — grants the code-server capability to apps and embeds a per-app VS Code editor running inside each app's own sandbox",
   "icon": "VSC",
   "componentType": "activity",
@@ -28,7 +28,7 @@
   "repository": {
     "url": "https://github.com/lakner-io/auraos-app-vscode",
     "branch": "main",
-    "commit": "07ea0a51979488f61ba06ea500a23af7ba9a7771"
+    "commit": ""
   },
   "store": {
     "publisher": "Lakner",
